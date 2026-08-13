@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * Tokens de diseño (fuente de verdad). Light por defecto; .dark sobre-escribe
+ * las superficies y el texto. Los estados de ticket y prioridades son
+ * legibles en ambos modos, por eso no cambian en dark.
+ * ------------------------------------------------------------------------- */
+:root {
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-soft: #eff6ff;
+  --color-brand-fg: #ffffff;
+  --color-brand-ring: #93c5fd;
+
+  --color-success: #059669;
+  --color-success-bg: #ecfdf5;
+  --color-success-fg: #065f46;
+
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-fg: #92400e;
+
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-fg: #991b1b;
+
+  --color-info: #0ea5e9;
+  --color-info-bg: #f0f9ff;
+  --color-info-fg: #075985;
+
+  --color-neutral: #64748b;
+  --color-neutral-bg: #f8fafc;
+  --color-neutral-fg: #475569;
+
+  --color-state-abierto-bg: #eff6ff;
+  --color-state-abierto-fg: #1e40af;
+  --color-state-en_progreso-bg: #eef2ff;
+  --color-state-en_progreso-fg: #3730a3;
+  --color-state-en_revision-bg: #fffbeb;
+  --color-state-en_revision-fg: #92400e;
+  --color-state-resuelto-bg: #ecfdf5;
+  --color-state-resuelto-fg: #065f46;
+  --color-state-cerrado-bg: #f8fafc;
+  --color-state-cerrado-fg: #475569;
+  --color-state-reabierto-bg: #fff1f2;
+  --color-state-reabierto-fg: #9f1239;
+
+  --color-prio-baja-bg: #f1f5f9;
+  --color-prio-baja-fg: #475569;
+  --color-prio-media-bg: #eff6ff;
+  --color-prio-media-fg: #1d4ed8;
+  --color-prio-alta-bg: #fffbeb;
+  --color-prio-alta-fg: #92400e;
+  --color-prio-urgente-bg: #fef2f2;
+  --color-prio-urgente-fg: #991b1b;
+
+  --bg-base: #ffffff;
+  --bg-subtle: #f8fafc;
+  --bg-muted: #f1f5f9;
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+
+  --ring-brand: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--color-brand-ring);
+}
+
+.dark {
+  --bg-base: #0b1120;
+  --bg-subtle: #111827;
+  --bg-muted: #1e293b;
+  --border-default: #334155;
+  --border-strong: #475569;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-surface text-content antialiased;
+  }
+  /* Foco visible consistente en toda la app. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-ring ring-offset-2 ring-offset-surface;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}

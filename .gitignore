@@ -1,7 +1,7 @@
-# Nestjs specific
-/dist
-/node_modules
-/build
+# Nestjs specific (monorepo-safe, recursivo)
+dist/
+node_modules/
+build/
 /tmp
 
 # Logs
@@ -13,7 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# dotenv environment variable files
+# dotenv environment variable files (NO commitear secretos; sí el ejemplo)
 .env
 .env.development
 .env.test
@@ -22,3 +22,16 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+.vercel
+.env*
+!.env.example
+
+# build artifacts (monorepo)
+dist/
+.next/
+build/
+test-results/
+*.tsbuildinfo
+*.js.map
+packages/types/src/*.js
+packages/types/src/*.d.ts

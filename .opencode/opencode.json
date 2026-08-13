@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "orchestrator",
+  "instructions": ["AGENTS.md"],
+  "permission": {
+    "edit": "ask",
+    "bash": {
+      "git *": "allow",
+      "bun *": "allow",
+      "bunx *": "allow",
+      "node *": "allow",
+      "vercel *": "allow",
+      "prisma *": "allow",
+      "*": "ask"
+    }
+  },
+  "agent": {
+    "orchestrator": {
+      "mode": "primary"
+    }
+  }
+}

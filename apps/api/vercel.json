@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "installCommand": "bun install",
+  "buildCommand": "bun run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/lambda.js": {
+      "includeFiles": "dist/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/lambda" }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "ticketera",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@ticketera/api' dev & bun run --filter '@ticketera/web' dev",
+    "build": "bun run --filter '@ticketera/api' build && bun run --filter '@ticketera/web' build",
+    "lint": "bun run --filter '*' lint",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter '*' test",
+    "prisma:generate": "bun run --filter '@ticketera/api' prisma:generate",
+    "prisma:migrate": "bun run --filter '@ticketera/api' prisma:migrate",
+    "prisma:deploy": "bun run --filter '@ticketera/api' prisma:deploy"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "bun@1.3.13"
+}

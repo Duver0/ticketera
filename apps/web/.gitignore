@@ -1,0 +1,6 @@
+.vercel
+.env*
+!.env.example
+.next/
+test-results/
+*.tsbuildinfo

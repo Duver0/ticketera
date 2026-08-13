@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "installCommand": "bun install",
+  "buildCommand": "bun run build",
+  "outputDirectory": ".next",
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
