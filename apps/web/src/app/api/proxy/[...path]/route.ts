@@ -1,24 +1,28 @@
 import {NextRequest, NextResponse} from 'next/server';
+import {getToken} from 'next-auth/jwt';
+import jwt from 'jsonwebtoken';
 import type {ApiError} from '@ticketera/types';
 
 /**
  * Proxy same-origin hacia el API (NestJS) en NEXT_PUBLIC_API_URL.
  *
  * Por qué existe:
- *  - El JWT de sesión (Auth.js, estrategia jwt) vive en una cookie first-party
+ *  - La sesión de Auth.js (estrategia jwt) vive en una cookie first-party
  *    para ticketera-sigma.vercel.app y NO se expone al browser.
- *  - El servidor de Next SÍ puede leer la cookie de sesión y reenviar el JWT
- *    crudo como `Authorization: Bearer` al API, que lo valida con el mismo
- *    AUTH_SECRET. Esto evita CORS y fugas de token. El browser solo llama a
- *    `/api/proxy/...`.
+ *  - El JWT de sesión de Auth.js se guarda en la cookie COMO JWE CIFRADO,
+ *    por lo que NO puede reenviarse tal cual como `Bearer` (el API lo
+ *    rechazaría con 401 "Token inválido o expirado").
+ *  - En su lugar, en el servidor decodificamos la sesión con `getToken` y
+ *    firmamos un NUEVO JWT (JWS, HS256) con el MISMO `AUTH_SECRET`, que el
+ *    API verifica. Así comparten secreto y evitamos CORS/fugas de token.
  *
  * Uso en el cliente: fetch(`/api/proxy/tickets?projectId=SUP`) equivale a
  * `${NEXT_PUBLIC_API_URL}/api/v1/tickets?projectId=SUP`.
  */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+export const runtime = 'nodejs';
 
-/** Nombres posibles de la cookie de sesión de Auth.js v5 (prod añade __Secure-). */
-const SESSION_COOKIE_NAMES = ['authjs.session-token', '__Secure-authjs.session-token'];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+const AUTH_SECRET = process.env.AUTH_SECRET;
 
 export async function GET(
   req: NextRequest,
@@ -72,21 +76,36 @@ async function forward(
     );
   }
 
-  const rawToken = SESSION_COOKIE_NAMES.map((name) => req.cookies.get(name)?.value).find(
-    (v): v is string => Boolean(v),
-  );
-
-  const target = `${API_BASE.replace(/\/$/, '')}/api/v1/${path.join('/')}${req.nextUrl.search}`;
-
   const headers = new Headers();
-  if (rawToken) {
-    headers.set('Authorization', `Bearer ${rawToken}`);
+
+  // Firmar un JWT estándar (HS256) válido para el API a partir de la sesión
+  // decodificada de Auth.js. El API lo verifica con @nestjs/jwt y el MISMO
+  // AUTH_SECRET. (Auth.js guarda la sesión como JWE cifrado, por eso no se
+  // puede reenviar la cookie tal cual ni usar `encode` de next-auth/jwt,
+  // que también produce JWE.)
+  if (AUTH_SECRET) {
+    const session = await getToken({req, secret: AUTH_SECRET});
+    if (session) {
+      const apiJwt = jwt.sign(
+        {
+          sub: session.sub,
+          email: (session as {email?: string}).email,
+          name: (session as {name?: string}).name,
+          picture: (session as {picture?: string}).picture,
+        },
+        AUTH_SECRET,
+        {expiresIn: '1h'},
+      );
+      headers.set('Authorization', `Bearer ${apiJwt}`);
+    }
   }
+
   const incomingContentType = req.headers.get('content-type');
   if (incomingContentType) {
     headers.set('Content-Type', incomingContentType);
   }
 
+  const target = `${API_BASE.replace(/\/$/, '')}/api/v1/${path.join('/')}${req.nextUrl.search}`;
   const hasBody = method !== 'GET' && method !== 'DELETE';
   const bodyBuffer: ArrayBuffer | null = hasBody ? await req.arrayBuffer() : null;
 
