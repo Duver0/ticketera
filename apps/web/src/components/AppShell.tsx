@@ -115,14 +115,40 @@ function NavLinks({role, onNavigate}: {role: string | null; onNavigate?: () => v
 
 /** Shell de la app autenticada: sidebar + topbar + contenido. */
 export function AppShell({children}: {children: React.ReactNode}): React.JSX.Element {
-  const {status, user, isAuthed} = useAuth();
+  const {status, user, isAuthed, isSyncing, isSyncError, syncError} = useAuth();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  if (status === 'loading' || (status === 'authenticated' && !user)) {
+  if (status === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface">
         <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  // Sesión Auth.js activa pero el perfil (sync con el API) sigue cargando o falló.
+  if (status === 'authenticated' && !user) {
+    if (isSyncing) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-surface">
+          <Spinner className="h-8 w-8" />
+        </div>
+      );
+    }
+    // Error de sync: dar salida (cerrar sesión / reintentar) en vez de colgar.
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface p-4">
+        <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 text-center shadow-sm">
+          <h2 className="text-lg font-semibold text-content">No pudimos cargar tu sesión</h2>
+          <p className="mt-2 text-sm text-content-secondary">
+            {(syncError as Error)?.message ?? 'Error desconocido al sincronizar'}
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button onClick={() => signOut({callbackUrl: '/login'})}>Cerrar sesión</Button>
+            <Button variant="secondary" onClick={() => router.refresh()}>Reintentar</Button>
+          </div>
+        </div>
       </div>
     );
   }

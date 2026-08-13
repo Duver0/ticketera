@@ -57,6 +57,26 @@ export interface SessionUser {
 }
 
 // ---------------------------------------------------------------------------
+// Auth: credenciales (email + contraseña)
+// ---------------------------------------------------------------------------
+
+export interface RegisterDto {
+  name: string; // 1..100 chars
+  email: string; // email válido
+  password: string; // >=8 chars, al menos una letra y un dígito
+}
+
+export interface LoginDto {
+  email: string;
+  password: string;
+}
+
+// Respuesta de /auth/login y /auth/register (envuelta en { data }):
+//   LoginResponse = SessionUser
+export type LoginResponse = SessionUser;
+export type RegisterResponse = SessionUser;
+
+// ---------------------------------------------------------------------------
 // DTOs de entrada (request bodies)
 // ---------------------------------------------------------------------------
 

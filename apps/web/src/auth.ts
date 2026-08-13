@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
-import type {Role} from '@ticketera/types';
+import Credentials from 'next-auth/providers/credentials';
+import type {Role, SessionUser} from '@ticketera/types';
 
 /**
  * Configuración de Auth.js (NextAuth v5, beta).
@@ -9,20 +10,57 @@ import type {Role} from '@ticketera/types';
  * cookie first-party. El API (NestJS) verifica ese mismo JWT como Bearer
  * (comparten AUTH_SECRET) — ver docs/architecture.md y packages/types.
  *
- * PROVISIONING (E1): al autenticar, el backend debe asegurar que exista el
- * User en Postgres y asignar `role`. Mientras tanto, el callback `jwt` deja
- * rol por defecto 'usuario' y el backend lo sobre-escribe llamando a
- * POST /users/sync (lo implementa backend). El shape del token debe incluir
- * `role` para que el proxy y el API lo usen.
+ * PROVISIONING (E1): al autenticar, el backend asegura que exista el User en
+ * Postgres y asigna `role`. El callback `jwt` resuelve el rol desde el objeto
+ * `user` que devuelve cada provider (GitHub o Credentials) y el API lo
+ * sobre-escribe según la DB en el guard. El shape del token incluye `role`.
+ *
+ * URL base del API: se usa NEXT_PUBLIC_API_URL (disponible server-side en el
+ * route handler de Auth.js y también en el bundle del cliente). Fallback a
+ * localhost:3001 para desarrollo local sin .env.
  */
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+
 export const {handlers, auth, signIn, signOut} = NextAuth({
-  providers: [GitHub],
+  providers: [
+    GitHub,
+    Credentials({
+      name: 'Email y contraseña',
+      credentials: {
+        email: {label: 'Email', type: 'email'},
+        password: {label: 'Contraseña', type: 'password'},
+      },
+      // authorize corre en el servidor (route handler de Auth.js) y consume la
+      // API directamente con URL absoluta. La respuesta exitosa viene envuelta
+      // en { data } por el ResponseTransformInterceptor, por eso leemos json.data.
+      async authorize(credentials): Promise<SessionUser | null> {
+        const email = typeof credentials?.email === 'string' ? credentials.email : '';
+        const password = typeof credentials?.password === 'string' ? credentials.password : '';
+        if (!email || !password) return null;
+
+        try {
+          const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, password}),
+          });
+          // 401 INVALID_CREDENTIALS (u otro error) -> null (sin filtrar motivo).
+          if (!res.ok) return null;
+          const json = (await res.json()) as {data: SessionUser};
+          return json.data; // { id, email, name, image, role }
+        } catch {
+          return null;
+        }
+      },
+    }),
+  ],
   session: {strategy: 'jwt'},
   callbacks: {
     async jwt({token, user}) {
       if (user) {
-        // TODO(backend/E1): sincronizar usuario y resolver rol real desde el API.
-        (token as {role?: Role}).role = 'usuario';
+        // user viene de GitHub o de Credentials.authorize (SessionUser), que ya
+        // trae el rol resuelto por el API.
+        (token as {role?: Role}).role = (user as SessionUser).role ?? 'usuario';
       }
       return token;
     },

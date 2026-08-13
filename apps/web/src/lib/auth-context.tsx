@@ -12,6 +12,8 @@ interface AuthContextValue {
   /** Usuario con rol resuelto vía POST /users/sync. */
   user: SessionUser | null;
   isSyncing: boolean;
+  isSyncError: boolean;
+  syncError: unknown;
   isAuthed: boolean;
   role: Role | null;
 }
@@ -26,7 +28,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({children}: {children: ReactNode}): React.JSX.Element {
   const {data: session, status} = useSession();
 
-  const {data: syncedUser, isLoading: isSyncing} = useQuery<SessionUser>({
+  const {data: syncedUser, isLoading: isLoadingSync, isError: isSyncError, error: syncError} = useQuery<SessionUser>({
     queryKey: ['me'],
     queryFn: () => api.post<SessionUser>('/users/sync'),
     enabled: status === 'authenticated',
@@ -38,7 +40,9 @@ export function AuthProvider({children}: {children: ReactNode}): React.JSX.Eleme
   const ctx: AuthContextValue = {
     status,
     user,
-    isSyncing: status === 'authenticated' && isSyncing && !user,
+    isSyncing: status === 'authenticated' && isLoadingSync && !user,
+    isSyncError: status === 'authenticated' && isSyncError && !user,
+    syncError,
     isAuthed: status === 'authenticated' && !!user,
     role: user?.role ?? null,
   };
