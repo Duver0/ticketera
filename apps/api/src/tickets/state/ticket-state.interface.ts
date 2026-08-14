@@ -1,14 +1,18 @@
-import type { Role, TicketStateValue, TransitionOptionDto } from '@ticketera/types';
+import type { ProjectRole, Role, TicketStateValue, TransitionOptionDto } from '@ticketera/types';
 
 /**
  * Contexto de guarda para evaluar si un actor puede transicionar.
  * `actorRole` es el rol GLOBAL del usuario (admin/agente/usuario), cargado desde
- * la DB por el guard. `reporterId` es el creador del ticket.
+ * la DB por el guard. `projectRole` es el rol POR PROYECTO (admin/supervisor/
+ * operador) resuelto vía ProjectMember; es la fuente de autorización fina dentro
+ * del proyecto (ver arquitectura-equipos-auditoria.md §8). `reporterId` es el
+ * creador del ticket.
  */
 export interface TransitionGuardContext {
   actorRole: Role;
   actorId: string;
   reporterId: string;
+  projectRole?: ProjectRole;
 }
 
 /**

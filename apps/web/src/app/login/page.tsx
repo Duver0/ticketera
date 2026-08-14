@@ -7,7 +7,7 @@ import {Button} from '@/components/ui/Button';
 import {Field, Input} from '@/components/ui/Field';
 import {Spinner} from '@/components/ui/Spinner';
 import {Tabs} from '@/components/ui/Tabs';
-import type {Role} from '@ticketera/types';
+import type {RegisterDto, Role} from '@ticketera/types';
 
 /**
  * Pantalla de login con Auth.js: toggle entre "Iniciar sesión" (GitHub +
@@ -15,8 +15,7 @@ import type {Role} from '@ticketera/types';
  * Redirige a "/" si ya hay sesión.
  */
 
-// --- Tipos locales mínimos (packages/types aún no expone RegisterDto/LoginDto). ---
-type RegisterPayload = {name: string; email: string; password: string};
+// --- Tipos locales mínimos ---
 type LoginPayload = {email: string; password: string};
 type SessionUserDTO = {
   id: string;
@@ -26,6 +25,9 @@ type SessionUserDTO = {
   role: Role;
 };
 type ApiErrorDTO = {error: {code: string; message: string}};
+
+/** Slug de organización: ^[a-z0-9]+(?:-[a-z0-9]+)*$, 3..40. */
+const ORG_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Base absoluta del API. NEXT_PUBLIC_API_URL está disponible en el bundle del
 // cliente (registro va por fetch directo, público, NO por el proxy auth).
@@ -179,18 +181,25 @@ function LoginForm(): React.JSX.Element {
   );
 }
 
-/** Modo "Crear cuenta": registro de credenciales + auto-login. */
+/** Modo "Crear cuenta": registro de credenciales + auto-login. Permite crear o unirse a una org. */
 function RegisterForm(): React.JSX.Element {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Opción de organización: crear (slug), unirse (código) u omitir.
+  const [orgMode, setOrgMode] = useState<'create' | 'join' | 'none'>('create');
+  const [orgSlug, setOrgSlug] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const emailInvalid = email.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
   const passwordHint = 'Mínimo 8 caracteres, con letra y número.';
   const passwordInvalid = password.length > 0 && !/(?=.*[A-Za-z])(?=.*\d).{8,}/.test(password);
+  const slugInvalid =
+    orgMode === 'create' && orgSlug.length > 0 && (!ORG_SLUG_RE.test(orgSlug) || orgSlug.length > 40);
+  const inviteCodeInvalid = orgMode === 'join' && inviteCode.trim().length === 0;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -200,8 +209,20 @@ function RegisterForm(): React.JSX.Element {
       setError('Revisa los campos resaltados.');
       return;
     }
+    if (orgMode === 'create' && (orgSlug.trim().length < 3 || slugInvalid)) {
+      setError('El slug de la organización debe tener 3–40 caracteres (minúsculas, letras, números y guiones).');
+      return;
+    }
+    if (orgMode === 'join' && inviteCodeInvalid) {
+      setError('Ingresa el código de invitación.');
+      return;
+    }
 
-    const payload: RegisterPayload = {name: name.trim(), email, password};
+    // RegisterDto: organizationSlug / inviteCode son mutuamente excluyentes y opcionales.
+    const payload: RegisterDto = {name: name.trim(), email, password};
+    if (orgMode === 'create') payload.organizationSlug = orgSlug.trim();
+    if (orgMode === 'join') payload.inviteCode = inviteCode.trim();
+
     setSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/api/v1/auth/register`, {
@@ -237,11 +258,19 @@ function RegisterForm(): React.JSX.Element {
 
       if (res.status === 409 || code === 'EMAIL_ALREADY_EXISTS') {
         setError('Este correo ya está registrado');
+      } else if (code === 'ORG_SLUG_TAKEN') {
+        setError('Ese slug de organización ya está en uso');
+      } else if (code === 'INVITE_CODE_INVALID') {
+        setError('El código de invitación no es válido');
       } else if (
         res.status === 400 &&
-        (code === 'WEAK_PASSWORD' || code === 'VALIDATION_ERROR')
+        (code === 'WEAK_PASSWORD' || code === 'VALIDATION_ERROR' || code === 'ORG_SLUG_INVALID')
       ) {
-        setError('La contraseña debe tener al menos 8 caracteres e incluir letra y número');
+        setError(
+          code === 'ORG_SLUG_INVALID'
+            ? 'El slug no es válido (3–40 chars, minúsculas, letras, números y guiones)'
+            : 'La contraseña debe tener al menos 8 caracteres e incluir letra y número',
+        );
       } else {
         setError(GENERIC_ERROR);
       }
@@ -307,6 +336,66 @@ function RegisterForm(): React.JSX.Element {
           required
         />
       </Field>
+
+      {/* Organización: crear, unirse o omitir (opcional) */}
+      <fieldset className="rounded-lg border border-line p-3">
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-content-tertiary">
+          Organización
+        </legend>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Organización al registrarse">
+          {(['create', 'join', 'none'] as const).map((mode) => (
+            <label
+              key={mode}
+              className="flex cursor-pointer items-center gap-1.5 text-sm text-content-secondary"
+            >
+              <input
+                type="radio"
+                name="org-mode"
+                value={mode}
+                checked={orgMode === mode}
+                onChange={() => setOrgMode(mode)}
+                className="accent-brand"
+              />
+              {mode === 'create' && 'Crear organización'}
+              {mode === 'join' && 'Unirme con código'}
+              {mode === 'none' && 'Sin organización'}
+            </label>
+          ))}
+        </div>
+
+        {orgMode === 'create' && (
+          <div className="mt-3">
+            <Field
+              label="Slug de la organización"
+              htmlFor="register-org-slug"
+              required
+              error={slugInvalid ? 'Formato no válido (3–40, minúsculas, guiones)' : undefined}
+              hint="Identificador único, p.ej. mi-equipo"
+            >
+              <Input
+                id="register-org-slug"
+                value={orgSlug}
+                invalid={slugInvalid}
+                placeholder="mi-equipo"
+                onChange={(e) => setOrgSlug(e.target.value.toLowerCase())}
+              />
+            </Field>
+          </div>
+        )}
+
+        {orgMode === 'join' && (
+          <div className="mt-3">
+            <Field label="Código de invitación" htmlFor="register-invite" required>
+              <Input
+                id="register-invite"
+                value={inviteCode}
+                placeholder="código proporcionado por tu org"
+                onChange={(e) => setInviteCode(e.target.value)}
+              />
+            </Field>
+          </div>
+        )}
+      </fieldset>
 
       {error && (
         <p role="alert" className="text-sm text-danger">

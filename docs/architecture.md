@@ -133,6 +133,8 @@ ticketera/
     state-machine.md
     api-contract.md
     deploy.md
+    arquitectura-equipos-auditoria.md  # roles por proyecto, invitación, visibilidad, auditoría
+    organizaciones.md                   # Organization, alcance por org, registro/ingreso, invitación acotada
   package.json              # workspaces + scripts bun
   tsconfig.base.json        # strict, sin any
 ```

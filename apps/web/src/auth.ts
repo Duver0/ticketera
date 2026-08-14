@@ -59,15 +59,21 @@ export const {handlers, auth, signIn, signOut} = NextAuth({
     async jwt({token, user}) {
       if (user) {
         // user viene de GitHub o de Credentials.authorize (SessionUser), que ya
-        // trae el rol resuelto por el API.
-        (token as {role?: Role}).role = (user as SessionUser).role ?? 'usuario';
+        // trae el rol y la organización resueltos por el API. Para GitHub el
+        // rol/org no viajan en el objeto, pero el sync los resuelve luego.
+        const u = user as unknown as SessionUser;
+        (token as {role?: Role}).role = u.role ?? 'usuario';
+        (token as {organizationId?: string | null}).organizationId =
+          u.organizationId ?? null;
       }
       return token;
     },
     async session({session, token}) {
       if (session.user) {
-        (session.user as {role?: Role}).role =
-          (token as {role?: Role}).role ?? 'usuario';
+        // Exponemos el rol global y la organización en la sesión del cliente.
+        const su = session.user as unknown as SessionUser;
+        su.role = (token as {role?: Role}).role ?? 'usuario';
+        su.organizationId = (token as {organizationId?: string | null}).organizationId ?? null;
       }
       return session;
     },

@@ -10,6 +10,7 @@ import {
 } from '@/lib/api-hooks';
 import {TransitionActions} from '@/components/ticket/TransitionActions';
 import {TicketHistory} from '@/components/ticket/TicketHistory';
+import {TicketActivityFeed} from '@/components/ticket/TicketActivityFeed';
 import {CommentSection} from '@/components/ticket/CommentSection';
 import {EditTicketModal} from '@/components/ticket/EditTicketModal';
 import {StatusPill} from '@/components/ui/StatusPill';
@@ -108,6 +109,15 @@ export default function TicketDetailPage(): React.JSX.Element {
             </CardHeader>
             <CardBody>
               <TicketHistory ticketId={ticket.id} />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-content">Actividad</h2>
+            </CardHeader>
+            <CardBody>
+              <TicketActivityFeed ticketId={ticket.id} />
             </CardBody>
           </Card>
 

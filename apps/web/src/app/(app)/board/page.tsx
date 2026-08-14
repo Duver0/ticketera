@@ -3,13 +3,15 @@
 import {useEffect, useState} from 'react';
 import {useProjects, useTickets} from '@/lib/api-hooks';
 import {KanbanBoard} from '@/components/KanbanBoard';
+import {CreateProjectDialog} from '@/components/CreateProjectDialog';
 import {Field, Select} from '@/components/ui/Field';
-import {Spinner} from '@/components/ui/Spinner';
-import {EmptyState} from '@/components/ui/Spinner';
+import {Spinner, EmptyState} from '@/components/ui/Spinner';
+import {Button} from '@/components/ui/Button';
 
 export default function BoardPage(): React.JSX.Element {
   const {data: projects = [], isLoading: loadingProjects} = useProjects();
   const [projectId, setProjectId] = useState<string>('');
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     if (!projectId && projects.length > 0) setProjectId(projects[0]?.id ?? '');
@@ -28,7 +30,16 @@ export default function BoardPage(): React.JSX.Element {
   }
 
   if (projects.length === 0) {
-    return <EmptyState title="Sin proyectos" description="Crea un proyecto para usar el tablero." />;
+    return (
+      <>
+        <EmptyState
+          title="Sin proyectos"
+          description="Crea un proyecto para usar el tablero."
+          action={<Button onClick={() => setShowCreate(true)}>Crear proyecto</Button>}
+        />
+        <CreateProjectDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      </>
+    );
   }
 
   return (

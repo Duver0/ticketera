@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type {
   RequestUser,
+  TicketActivityDto,
   TicketDto,
   TicketHistoryDto,
   TransitionOptionDto,
@@ -78,6 +79,14 @@ export class TicketsController {
     @CurrentUser() user: RequestUser,
   ): Promise<TicketHistoryDto[]> {
     return this.tickets.history(id, user);
+  }
+
+  @Get(':id/activity')
+  activity(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<TicketActivityDto[]> {
+    return this.tickets.activity(id, user);
   }
 
   @Get(':id/transitions')

@@ -45,7 +45,9 @@ el frontend la consume vía el proxy (`apps/web/src/lib/api.ts`).
 `NOT_FOUND`, `CONFLICT`, `PROJECT_NOT_FOUND`, `TICKET_NOT_FOUND`,
 `COMMENT_NOT_FOUND`, `LABEL_NOT_FOUND`, `USER_NOT_FOUND`, `NOT_PROJECT_MEMBER`,
 `TICKET_KEY_CONFLICT`, `TRANSITION_NOT_ALLOWED`, `SAME_STATE_TRANSITION`,
-`INVALID_TRANSITION`, `ASSIGNEE_NOT_MEMBER`. (Definidos en
+`INVALID_TRANSITION`, `ASSIGNEE_NOT_MEMBER`,
+`ORG_SLUG_INVALID`, `ORG_SLUG_TAKEN`, `ORG_NOT_FOUND`, `ORG_ALREADY_MEMBER`,
+`ORG_REQUIRED`, `INVITE_CODE_INVALID`, `NOT_ORG_ADMIN`. (Definidos en
 `apps/api/src/common/errors/error-codes.ts`.)
 
 ---
@@ -100,6 +102,44 @@ el frontend la consume vía el proxy (`apps/web/src/lib/api.ts`).
   "assigneeId?": "uuid", "labelIds?": ["uuid"] }
 ```
 La API genera `number` correlativo por proyecto y `key = ${Project.key}-${number}`.
+
+> **Alcance por organización (ver `docs/organizaciones.md`):** el `Project`
+> pertenece a la organización de su creador (`Project.organizationId`, fijado en
+> creación; el creador debe tener una org → `409 ORG_REQUIRED` si es org-less).
+> Agregar miembros (`POST /projects/:id/members`) solo acepta usuarios cuya
+> `organizationId` coincida con la del proyecto; de lo contrario → `404
+> USER_NOT_FOUND` (no se revela existencia cross-org). Recomendado para el
+> autocompletado del frontend: `GET /projects/:id/candidates?q=` (usuarios de la
+> misma org del proyecto aún no miembros).
+
+### 2.3b Organizaciones (`/organizations`)
+
+| Método | Ruta | Rol | Body | 200/201 | Errores |
+|--------|------|-----|------|---------|---------|
+| POST | `/organizations` | autenticado (org-less) / admin global | `CreateOrganizationDto` | `OrganizationDto` (201) | `ORG_SLUG_INVALID` (422), `ORG_SLUG_TAKEN` (409), `ORG_ALREADY_MEMBER` (409) |
+| POST | `/organizations/join` | autenticado (org-less) | `JoinOrganizationDto` | `OrganizationDto` (200) | `INVITE_CODE_INVALID` (404), `ORG_ALREADY_MEMBER` (409) |
+| GET | `/organizations/me` | autenticado con org | — | `OrganizationDto` | `ORG_NOT_FOUND` (404) |
+| GET | `/organizations/me/members` | miembro de la org | — | `OrganizationMemberDto[]` | `ORG_NOT_FOUND` (404) |
+| POST | `/organizations/invite-code/rotate` | dueño de la org / admin global | — | `RotateInviteCodeResponseDto` | `ORG_NOT_FOUND` (404), `NOT_ORG_ADMIN` (403) |
+
+- `POST /organizations`: cualquier usuario autenticado **sin org** crea su org y
+  queda dueño; el **admin global** puede además pasar `ownerId`. Slug debe cumplir
+  `^[a-z0-9]+(?:-[a-z0-9]+)*$` (3–40). Ya en org → `409 ORG_ALREADY_MEMBER`.
+- `POST /organizations/join`: requiere `inviteCode` válido y actor sin org.
+- `GET /organizations/me` incluye `inviteCode` **solo** si el actor es dueño o
+  admin global.
+- `POST /organizations/invite-code/rotate`: regenera el token (el anterior deja de
+  funcionar). Admin global actúa como dueño de cualquier org.
+
+`CreateOrganizationDto`: `{ "slug": "string", "ownerId?": "uuid" }`
+`JoinOrganizationDto`: `{ "inviteCode": "string" }`
+`OrganizationDto`: `{ "id", "slug", "ownerId", "createdAt", "memberCount", "inviteCode?" }`
+`RotateInviteCodeResponseDto`: `{ "inviteCode": "string" }`
+`OrganizationMemberDto`: `{ "id", "name?", "email", "role", "joinedAt" }`
+
+> El registro (`POST /api/v1/auth/register`) también acepta `organizationSlug?` /
+> `inviteCode?` para crear/unirse a org al dar de alta al usuario (ver
+> `docs/organizaciones.md` §3 y `docs/auth-design.md`).
 
 ### 2.5 Transiciones de estado (`/tickets/:id/transitions`) — Patrón State
 

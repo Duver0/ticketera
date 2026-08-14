@@ -1,4 +1,11 @@
-import type {Priority, Role, TicketStateValue, TicketType} from '@ticketera/types';
+import type {
+  Priority,
+  ProjectRole,
+  Role,
+  TicketAuditField,
+  TicketStateValue,
+  TicketType,
+} from '@ticketera/types';
 
 /** Etiquetas en español para los valores de dominio (la UI siempre en español). */
 export const STATE_LABELS: Record<TicketStateValue, string> = {
@@ -39,6 +46,23 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrador',
   agente: 'Agente',
   usuario: 'Usuario',
+};
+
+/** Etiquetas en español del rol dentro de un proyecto (ProjectRole). */
+export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
+  admin: 'Admin del proyecto',
+  supervisor: 'Supervisor',
+  operador: 'Operador',
+};
+
+/** Etiquetas en español de los campos auditados en un ticket. */
+export const AUDIT_FIELD_LABELS: Record<TicketAuditField, string> = {
+  title: 'Título',
+  description: 'Descripción',
+  priority: 'Prioridad',
+  type: 'Tipo',
+  assigneeId: 'Asignado',
+  state: 'Estado',
 };
 
 /** Color sólido para barras/gráficos (no depende de clases Tailwind). */

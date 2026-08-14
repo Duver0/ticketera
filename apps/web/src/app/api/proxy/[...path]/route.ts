@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
-import {getToken} from 'next-auth/jwt';
+import {getToken, decode} from 'next-auth/jwt';
 import jwt from 'jsonwebtoken';
 import type {ApiError} from '@ticketera/types';
 
@@ -23,6 +23,32 @@ export const runtime = 'nodejs';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const AUTH_SECRET = process.env.AUTH_SECRET;
+
+/**
+ * Resuelve la sesión de Auth.js en el servidor del proxy.
+ *
+ * Usa `getToken` (v5) y, si no encuentra la cookie (por ejemplo, por la
+ * detección de cookie segura `__Secure-authjs.session-token` en producción
+ * detrás de un proxy inverso), lee explícitamente ambos posibles nombres de
+ * cookie y descifra el JWE con `decode`. Así garantizamos que el Bearer JWT
+ * siempre se adjunte al reenvío al API.
+ */
+async function getSession(req: NextRequest, secret: string): Promise<Record<string, unknown> | null> {
+  const fromGetToken = await getToken({req, secret});
+  if (fromGetToken) return fromGetToken as Record<string, unknown>;
+
+  const cookieName = req.cookies.has('__Secure-authjs.session-token')
+    ? '__Secure-authjs.session-token'
+    : 'authjs.session-token';
+  const raw = req.cookies.get(cookieName)?.value;
+  if (raw) {
+    // El `salt` es el nombre completo de la cookie (incluido el prefijo
+    // `__Secure-` en producción), igual que usa Auth.js al cifrar el JWE.
+    const decoded = await decode({token: raw, secret, salt: cookieName});
+    if (decoded) return decoded as Record<string, unknown>;
+  }
+  return null;
+}
 
 export async function GET(
   req: NextRequest,
@@ -84,7 +110,7 @@ async function forward(
   // puede reenviar la cookie tal cual ni usar `encode` de next-auth/jwt,
   // que también produce JWE.)
   if (AUTH_SECRET) {
-    const session = await getToken({req, secret: AUTH_SECRET});
+    const session = await getSession(req, AUTH_SECRET);
     if (session) {
       const apiJwt = jwt.sign(
         {

@@ -10,6 +10,7 @@ function toSessionUser(row: {
   name: string | null;
   image: string | null;
   role: SessionUser['role'];
+  organizationId: string | null;
 }): SessionUser {
   return {
     id: row.id,
@@ -17,6 +18,7 @@ function toSessionUser(row: {
     name: row.name,
     image: row.image,
     role: row.role,
+    organizationId: row.organizationId,
   };
 }
 

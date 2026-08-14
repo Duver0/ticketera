@@ -1,9 +1,12 @@
 import {
+  IsEmail,
   IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { ProjectRole } from '@ticketera/types';
 
 /** POST /projects */
@@ -31,11 +34,34 @@ export class UpdateProjectDto {
   description?: string;
 }
 
-/** POST /projects/:id/members */
+/**
+ * POST /projects/:id/members
+ * Acepta `userId` O `email` (exactamente uno requerido). `roleInProject`
+ * opcional (default `operador` en el service).
+ */
 export class AddProjectMemberDto {
+  @IsOptional()
   @IsString()
-  userId!: string;
+  userId?: string;
 
-  @IsEnum(['admin', 'agente', 'usuario'])
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsEnum(['admin', 'supervisor', 'operador'])
+  roleInProject?: ProjectRole;
+}
+
+/** PATCH /projects/:id/members/:userId */
+export class UpdateProjectMemberDto {
+  @IsEnum(['admin', 'supervisor', 'operador'])
   roleInProject!: ProjectRole;
+}
+
+/** GET /projects/:id/candidates?q= */
+export class CandidatesQueryDto {
+  @IsOptional()
+  @IsString()
+  q?: string;
 }

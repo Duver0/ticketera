@@ -16,6 +16,8 @@ interface AuthContextValue {
   syncError: unknown;
   isAuthed: boolean;
   role: Role | null;
+  /** Organización del usuario (null si es org-less). Resuelto vía /users/sync. */
+  organizationId: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,6 +47,7 @@ export function AuthProvider({children}: {children: ReactNode}): React.JSX.Eleme
     syncError,
     isAuthed: status === 'authenticated' && !!user,
     role: user?.role ?? null,
+    organizationId: user?.organizationId ?? null,
   };
 
   return <AuthContext.Provider value={ctx}>{children}</AuthContext.Provider>;

@@ -4,17 +4,54 @@ import type { TicketState, TransitionGuardContext } from './ticket-state.interfa
 /**
  * Estados concretos del ciclo de vida del ticket (Patrón State).
  * `allowedTargets` define la estructura; `canTransitionTo` aplica los guardas por
- * rol. `admin` siempre puede forzar cualquiera (state-machine.md §3/§5).
+ * rol. El `admin` global siempre puede forzar cualquiera. El `admin` de proyecto
+ * también (override intra-proyecto). `supervisor` se comporta como el `agente`
+ * histórico; `operador` tiene transiciones limitadas (tomar ticket + avanzar a
+ * revisión). Ver arquitectura-equipos-auditoria.md §8.
  */
+
+/** Transiciones permitidas para un `operador` (camino feliz restringido). */
+function operadorAllowed(current: TicketStateValue, target: TicketStateValue): boolean {
+  if (current === 'abierto' && target === 'en_progreso') return true; // "tomar ticket"
+  if (current === 'en_progreso' && target === 'en_revision') return true;
+  return false;
+}
+
+/**
+ * Resolución de permiso combinando rol global y rol de proyecto.
+ * `allowed` es la lista estructural (la que antes correspondía al `agente`).
+ */
+function roleAllows(
+  current: TicketStateValue,
+  target: TicketStateValue,
+  allowed: readonly TicketStateValue[],
+  ctx: TransitionGuardContext,
+): boolean {
+  // Override total: admin global.
+  if (ctx.actorRole === 'admin') return true;
+  // Override intra-proyecto: admin de proyecto.
+  if (ctx.projectRole === 'admin') return true;
+  // Supervisor: flujo normal (igual que el agente histórico).
+  if (ctx.projectRole === 'supervisor') return allowed.includes(target);
+  // Operador: solo su camino feliz restringido.
+  if (ctx.projectRole === 'operador') return operadorAllowed(current, target);
+  // Fallback por rol global (sin projectRole resuelto): mantiene semántica previa.
+  if (ctx.actorRole === 'agente') return allowed.includes(target);
+  if (ctx.actorRole === 'usuario') {
+    if (!ctx.reporterId || ctx.actorId !== ctx.reporterId) return false;
+    if (current === 'resuelto' && target === 'reabierto') return true;
+    if (current === 'cerrado' && target === 'reabierto') return true;
+    return false;
+  }
+  return false;
+}
 
 class AbiertoState implements TicketState {
   readonly value: TicketStateValue = 'abierto';
   readonly allowedTargets: readonly TicketStateValue[] = ['en_progreso', 'en_revision', 'cerrado'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    if (ctx.actorRole === 'agente') return this.allowedTargets.includes(target);
-    return false; // usuario no mueve 'abierto'
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 
@@ -23,9 +60,7 @@ class EnProgresoState implements TicketState {
   readonly allowedTargets: readonly TicketStateValue[] = ['en_revision', 'abierto'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    if (ctx.actorRole === 'agente') return this.allowedTargets.includes(target);
-    return false;
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 
@@ -34,9 +69,7 @@ class EnRevisionState implements TicketState {
   readonly allowedTargets: readonly TicketStateValue[] = ['resuelto', 'en_progreso'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    if (ctx.actorRole === 'agente') return this.allowedTargets.includes(target);
-    return false;
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 
@@ -45,12 +78,7 @@ class ResueltoState implements TicketState {
   readonly allowedTargets: readonly TicketStateValue[] = ['cerrado', 'reabierto'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    // usuario solo si es el reportero del ticket
-    if (ctx.actorRole === 'usuario') {
-      return ctx.actorId === ctx.reporterId && this.allowedTargets.includes(target);
-    }
-    return false; // agente no mueve 'resuelto'
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 
@@ -59,12 +87,7 @@ class CerradoState implements TicketState {
   readonly allowedTargets: readonly TicketStateValue[] = ['reabierto'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    if (ctx.actorRole === 'agente') return this.allowedTargets.includes(target);
-    if (ctx.actorRole === 'usuario') {
-      return ctx.actorId === ctx.reporterId && this.allowedTargets.includes(target);
-    }
-    return false;
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 
@@ -73,9 +96,7 @@ class ReabiertoState implements TicketState {
   readonly allowedTargets: readonly TicketStateValue[] = ['en_progreso', 'abierto', 'cerrado'];
 
   canTransitionTo(target: TicketStateValue, ctx: TransitionGuardContext): boolean {
-    if (ctx.actorRole === 'admin') return true;
-    if (ctx.actorRole === 'agente') return this.allowedTargets.includes(target);
-    return false;
+    return roleAllows(this.value, target, this.allowedTargets, ctx);
   }
 }
 

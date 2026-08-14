@@ -1,6 +1,7 @@
 'use client';
 
 import {useState} from 'react';
+import Link from 'next/link';
 import {useAuth} from '@/lib/auth-context';
 import {
   useProjectMembers,
@@ -9,10 +10,12 @@ import {
   useUsers,
 } from '@/lib/api-hooks';
 import {useToast} from '@/components/ui/Toast';
+import {CreateProjectDialog} from '@/components/CreateProjectDialog';
 import {Card, CardBody, CardHeader} from '@/components/ui/Card';
 import {Spinner} from '@/components/ui/Spinner';
 import {Avatar} from '@/components/ui/Avatar';
 import {Select} from '@/components/ui/Field';
+import {Button} from '@/components/ui/Button';
 import {ROLE_LABELS} from '@/lib/constants';
 import type {Role} from '@ticketera/types';
 
@@ -113,29 +116,50 @@ export default function AdminPage(): React.JSX.Element {
 
 function ProjectsAdmin({expanded, setExpanded}: {expanded: string | null; setExpanded: (v: string | null) => void}): React.JSX.Element {
   const {data: projects = []} = useProjects();
+  const [showCreate, setShowCreate] = useState(false);
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-sm font-semibold text-content">Proyectos y miembros</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-content">Proyectos y miembros</h2>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            Nuevo proyecto
+          </Button>
+        </div>
       </CardHeader>
       <CardBody className="space-y-2">
         {projects.length === 0 && <p className="text-sm text-content-tertiary">Sin proyectos.</p>}
         {projects.map((p) => (
           <div key={p.id} className="rounded-lg border border-line">
-            <button
-              onClick={() => setExpanded(expanded === p.id ? null : p.id)}
-              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-content hover:bg-surface-muted"
-              aria-expanded={expanded === p.id}
-            >
-              <span>
-                <span className="font-mono text-xs text-content-tertiary">{p.key}</span> · {p.name}
-              </span>
-              <span className="text-content-tertiary">{expanded === p.id ? '−' : '+'}</span>
-            </button>
+              <div className="flex w-full items-center justify-between gap-2 px-3 py-2">
+                <button
+                  onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-content hover:bg-surface-muted"
+                  aria-expanded={expanded === p.id}
+                >
+                  <span className="truncate">
+                    <span className="font-mono text-xs text-content-tertiary">{p.key}</span> · {p.name}
+                  </span>
+                </button>
+                <Link
+                  href={`/projects/${p.id}`}
+                  className="shrink-0 rounded-md px-2 py-1 text-xs text-brand hover:bg-surface-muted"
+                >
+                  Abrir
+                </Link>
+                <button
+                  onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                  className="shrink-0 text-content-tertiary"
+                  aria-label={expanded === p.id ? 'Colapsar' : 'Expandir'}
+                >
+                  {expanded === p.id ? '−' : '+'}
+                </button>
+              </div>
             {expanded === p.id && <ProjectMembers projectId={p.id} />}
           </div>
         ))}
       </CardBody>
+      <CreateProjectDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </Card>
   );
 }

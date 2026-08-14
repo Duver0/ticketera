@@ -58,14 +58,17 @@ export class JwtAuthGuard implements CanActivate {
       typeof payload['picture'] === 'string' ? payload['picture'] : null;
 
     let role: Role = 'usuario';
+    let organizationId: string | null = null;
     if (userId) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         role = user.role;
+        organizationId = user.organizationId;
       } else if (email) {
         const byEmail = await this.prisma.user.findUnique({ where: { email } });
         if (byEmail) {
           role = byEmail.role;
+          organizationId = byEmail.organizationId;
         }
       }
     }
@@ -74,6 +77,7 @@ export class JwtAuthGuard implements CanActivate {
       id: userId ?? email ?? '',
       email: email ?? '',
       role,
+      organizationId,
       name,
       image,
     };

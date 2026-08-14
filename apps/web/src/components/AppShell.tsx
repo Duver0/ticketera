@@ -55,6 +55,33 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: '/projects',
+    label: 'Proyectos',
+    icon: (
+      <path
+        d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    href: '/org',
+    label: 'Mi organización',
+    icon: (
+      <path
+        d="M3 21V9l9-6 9 6v12M9 21v-6h6v6M7 12h.01M17 12h.01"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    ),
+  },
+  {
     href: '/admin',
     label: 'Admin',
     adminOnly: true,

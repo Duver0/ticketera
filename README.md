@@ -6,6 +6,23 @@ de cambios y reportes. El ciclo de vida del ticket se modela con el **patrón
 State** (máquina de estados), y la autorización combina roles globales
 (`admin`, `agente`, `usuario`) con membresía por proyecto.
 
+## Funcionalidades
+
+- **Organizaciones**: al registrarse puedes **crear** una organización (slug único,
+  quedas como dueño) o **unirte** con un código de invitación. Los miembros de un
+  proyecto deben pertenecer a la **misma organización** (el autocompletado de
+  candidatos es org-scoped: no se sugieren usuarios de otras orgs).
+- **Roles de proyecto** (`ProjectRole`, independiente del rol global): `admin`,
+  `supervisor`, `operador`. El `supervisor` gestiona miembros pero **no puede
+  otorgar el rol `admin` de proyecto** (el API responde 403); el `operador` solo
+  ve/edita los tickets visibles para él.
+- **Visibilidad de tickets por rol** (filtrado *server-side*): un `operador` ve
+  únicamente los tickets `abierto` y sin asignar, o los que tiene asignados; el
+  resto de roles ve todos los tickets del proyecto.
+- **Auditoría de tickets**: los cambios de campos se registran en `TicketAudit` y
+  el endpoint `GET /tickets/:id/activity` unifica el historial de estado
+  (`TicketHistory`) y la auditoría de ediciones en un solo feed.
+
 ---
 
 ## Stack
@@ -68,7 +85,7 @@ ticketera/
         app.module.ts       # módulo raíz
         prisma/             # PrismaService (@Global) + schema.prisma + seed.ts
         common/             # errors (error-codes), filters, guards, decorators
-        modules/            # auth, users, projects, tickets, comments,
+        modules/            # auth, users, organizations, projects, tickets, comments,
                             # labels, attachments, notifications, health
           tickets/
             state/          # máquina de estados (TicketState, TicketContext)
@@ -80,8 +97,8 @@ ticketera/
       src/
         app/
           login/page.tsx    # login con GitHub
-          (app)/            # rutas autenticadas: dashboard, tickets, board,
-                            # admin, profile
+           (app)/            # rutas autenticadas: dashboard, tickets, board,
+                             # projects, org, admin, profile
           api/
             auth/[...nextauth]/route.ts
             proxy/[...path]/route.ts   # proxy same-origin al API
@@ -216,6 +233,10 @@ debe aplicarse `prisma migrate deploy` contra Neon. Pasos completos en
 - `docs/state-machine.md` — patrón State de tickets: estados, transiciones y
   guardas por rol.
 - `docs/api-contract.md` — endpoints REST, DTOs, códigos de respuesta.
+- `docs/organizaciones.md` — modelo de `Organization`, registro/unirse por código
+  e isolamiento por organización.
+- `docs/arquitectura-equipos-auditoria.md` — roles de proyecto, visibilidad por
+  rol y auditoría de tickets.
 - `docs/quality-gates.md` — quality gates de merge y estado de pruebas (QA).
 - `docs/deploy.md` — variables de entorno y pasos de despliegue en Vercel.
 

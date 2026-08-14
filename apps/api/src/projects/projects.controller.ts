@@ -7,9 +7,11 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import type {
+  OrganizationMemberDto,
   ProjectDto,
   ProjectMemberDto,
   RequestUser,
@@ -17,7 +19,13 @@ import type {
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ProjectsService } from './projects.service';
-import { AddProjectMemberDto, CreateProjectDto, UpdateProjectDto } from './dto/projects.dto';
+import {
+  AddProjectMemberDto,
+  CandidatesQueryDto,
+  CreateProjectDto,
+  UpdateProjectDto,
+  UpdateProjectMemberDto,
+} from './dto/projects.dto';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
@@ -73,6 +81,16 @@ export class ProjectsController {
     return this.projects.addMember(id, user, dto);
   }
 
+  @Patch(':id/members/:userId')
+  updateMember(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateProjectMemberDto,
+    @CurrentUser() user: RequestUser,
+  ): Promise<ProjectMemberDto> {
+    return this.projects.updateMember(id, userId, user, dto);
+  }
+
   @Delete(':id/members/:userId')
   @HttpCode(204)
   removeMember(
@@ -81,5 +99,14 @@ export class ProjectsController {
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
     return this.projects.removeMember(id, userId, user);
+  }
+
+  @Get(':id/candidates')
+  candidates(
+    @Param('id') id: string,
+    @Query() query: CandidatesQueryDto,
+    @CurrentUser() user: RequestUser,
+  ): Promise<OrganizationMemberDto[]> {
+    return this.projects.candidates(id, query.q, user.id);
   }
 }
