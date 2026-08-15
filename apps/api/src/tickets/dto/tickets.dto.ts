@@ -86,8 +86,11 @@ export class TransitionTicketDto {
 
 /** GET /tickets (filtros + paginación). */
 export class TicketQueryDto {
+  /** Opcional: si se omite, el listado se acota a los proyectos/organización
+   *  del usuario (visor "Mis tickets" en el dashboard). */
+  @IsOptional()
   @IsString()
-  projectId!: string;
+  projectId?: string;
 
   @IsOptional()
   @IsIn(STATES)

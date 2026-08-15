@@ -1,7 +1,7 @@
 'use client';
 
-import {useEffect, useState} from 'react';
-import {useRouter} from 'next/navigation';
+import {Suspense, useEffect, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {signIn, useSession} from 'next-auth/react';
 import {Button} from '@/components/ui/Button';
 import {Field, Input} from '@/components/ui/Field';
@@ -11,8 +11,11 @@ import type {RegisterDto, Role} from '@ticketera/types';
 
 /**
  * Pantalla de login con Auth.js: toggle entre "Iniciar sesión" (GitHub +
- * credenciales) y "Crear cuenta" (registro de credenciales con auto-login).
- * Redirige a "/" si ya hay sesión.
+ * credenciales) y "Crear cuenta" (registro de credenciales).
+ *
+ * El registro ya NO hace auto-login (flujo defectuoso): al crear la cuenta
+ * navega a la pestaña de login con un flag de éxito y el email prefijado, y el
+ * usuario inicia sesión manualmente (login de credenciales, que sí es estable).
  */
 
 // --- Tipos locales mínimos ---
@@ -26,7 +29,7 @@ type SessionUserDTO = {
 };
 type ApiErrorDTO = {error: {code: string; message: string}};
 
-/** Slug de organización: ^[a-z0-9]+(?:-[a-z0-9]+)*$, 3..40. */
+// Slug de organización: ^[a-z0-9]+(?:-[a-z0-9]+)*$, 3..40.
 const ORG_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Base absoluta del API. NEXT_PUBLIC_API_URL está disponible en el bundle del
@@ -36,15 +39,54 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').re
 const GENERIC_ERROR = 'No pudimos procesar tu solicitud. Intenta de nuevo más tarde.';
 
 export default function LoginPage(): React.JSX.Element {
+  // useSearchParams() requiere un límite de Suspense para el build estático.
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-surface px-4">
+          <Spinner className="h-6 w-6" />
+        </main>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner(): React.JSX.Element {
+  const searchParams = useSearchParams();
   const {status} = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  // Estado compartido entre ambos formularios (el email viaja entre pestañas).
+  const [email, setEmail] = useState('');
+  // Error compartido: permite que el error de registro (p.ej. correo repetido)
+  // se muestre en la pestaña de login tras hacer switch de modo.
+  const [error, setError] = useState<string | null>(null);
+  const [registeredBanner, setRegisteredBanner] = useState(false);
+
+  // Sincroniza flag de éxito + email prefijado desde la URL tras un registro.
+  useEffect(() => {
+    if (searchParams.get('registered') === '1') {
+      setRegisteredBanner(true);
+      const emailFromUrl = searchParams.get('email') ?? '';
+      // Solo prefija si el campo está vacío: no pisa lo que el usuario escriba.
+      setEmail((prev) => prev || emailFromUrl);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (status === 'authenticated') router.replace('/');
   }, [status, router]);
 
   const loading = status === 'loading';
+
+  function handleTabChange(key: string): void {
+    setMode(key as 'login' | 'register');
+    // Cambio manual de pestaña: limpia errores obsoletos.
+    setError(null);
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-4">
@@ -59,6 +101,15 @@ export default function LoginPage(): React.JSX.Element {
           </p>
         </div>
 
+        {registeredBanner && (
+          <div
+            role="status"
+            className="mb-4 rounded-lg border border-success bg-success/10 px-3 py-2 text-sm text-success"
+          >
+            Cuenta creada. Inicia sesión con tu correo y contraseña.
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-4">
             <Spinner className="h-6 w-6" />
@@ -72,11 +123,21 @@ export default function LoginPage(): React.JSX.Element {
                   {key: 'register', label: 'Crear cuenta'},
                 ]}
                 value={mode}
-                onChange={(key) => setMode(key as 'login' | 'register')}
+                onChange={handleTabChange}
               />
             </div>
 
-            {mode === 'login' ? <LoginForm /> : <RegisterForm />}
+            {mode === 'login' ? (
+              <LoginForm email={email} setEmail={setEmail} error={error} setError={setError} />
+            ) : (
+              <RegisterForm
+                email={email}
+                setEmail={setEmail}
+                setMode={setMode}
+                error={error}
+                setError={setError}
+              />
+            )}
           </>
         )}
       </div>
@@ -84,12 +145,25 @@ export default function LoginPage(): React.JSX.Element {
   );
 }
 
+type SharedEmailProps = {
+  email: string;
+  setEmail: React.Dispatch<React.SetStateAction<string>>;
+};
+
+type SharedErrorProps = {
+  error: string | null;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+};
+
 /** Modo "Iniciar sesión": GitHub + formulario de credenciales. */
-function LoginForm(): React.JSX.Element {
+function LoginForm({
+  email,
+  setEmail,
+  error,
+  setError,
+}: SharedEmailProps & SharedErrorProps): React.JSX.Element {
   const router = useRouter();
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const emailInvalid = email.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
@@ -139,7 +213,12 @@ function LoginForm(): React.JSX.Element {
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4" noValidate>
-        <Field label="Email" htmlFor="login-email" required error={emailInvalid ? 'Ingresa un email válido' : undefined}>
+        <Field
+          label="Email"
+          htmlFor="login-email"
+          required
+          error={emailInvalid ? 'Ingresa un email válido' : undefined}
+        >
           <Input
             id="login-email"
             name="email"
@@ -181,17 +260,26 @@ function LoginForm(): React.JSX.Element {
   );
 }
 
-/** Modo "Crear cuenta": registro de credenciales + auto-login. Permite crear o unirse a una org. */
-function RegisterForm(): React.JSX.Element {
+/**
+ * Modo "Crear cuenta": registro de credenciales. Al crear la cuenta navega a la
+ * pestaña de login (con flag + email prefijado) en lugar de auto-loguear, para
+ * evitar el flujo defectuoso de signIn justo después del registro.
+ */
+function RegisterForm({
+  email,
+  setEmail,
+  setMode,
+  error,
+  setError,
+}: SharedEmailProps &
+  SharedErrorProps & {setMode: React.Dispatch<React.SetStateAction<'login' | 'register'>>}): React.JSX.Element {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // Opción de organización: crear (slug), unirse (código) u omitir.
   const [orgMode, setOrgMode] = useState<'create' | 'join' | 'none'>('create');
   const [orgSlug, setOrgSlug] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const emailInvalid = email.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
@@ -232,18 +320,12 @@ function RegisterForm(): React.JSX.Element {
       });
 
       if (res.status === 201) {
-        // Auto-login con las credenciales recién creadas.
-        const loginResult = await signIn('credentials', {
-          email,
-          password,
-          redirect: false,
-          callbackUrl: '/',
-        });
-        if (loginResult?.ok) {
-          router.replace('/');
-          return;
-        }
-        setError('Cuenta creada, pero no pudimos iniciar sesión automáticamente.');
+        // Éxito: cambia a la pestaña de login y navega con flag + email prefijado
+        // (sin auto-login defectuoso). El usuario inicia sesión manualmente, que
+        // sí funciona. La navegación es a la misma ruta (cambia solo el query),
+        // así que el estado `mode` persiste: lo forzamos a 'login'.
+        setMode('login');
+        router.replace('/login?registered=1&email=' + encodeURIComponent(email));
         return;
       }
 
@@ -257,7 +339,11 @@ function RegisterForm(): React.JSX.Element {
       }
 
       if (res.status === 409 || code === 'EMAIL_ALREADY_EXISTS') {
-        setError('Este correo ya está registrado');
+        // Correo repetido: cambia a la pestaña de login conservando el email y
+        // mostrando un mensaje claro (evita el "strand" silencioso).
+        setError('Este correo ya está registrado. Inicia sesión con tu contraseña.');
+        setMode('login');
+        return;
       } else if (code === 'ORG_SLUG_TAKEN') {
         setError('Ese slug de organización ya está en uso');
       } else if (code === 'INVITE_CODE_INVALID') {

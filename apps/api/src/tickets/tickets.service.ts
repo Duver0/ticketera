@@ -237,19 +237,8 @@ export class TicketsService {
    * visibles para él.
    */
   async findAll(query: TicketQueryDto, user: RequestUser): Promise<TicketDto[]> {
-    await this.ensureMember(query.projectId, user.id);
-
-    const role = await this.resolveProjectRole(query.projectId, user.id);
-    // Admin global: override (sin filtro de visibilidad). ensureMember ya garantiza
-    // membresía para los demás, así que `role` es 'admin'|'supervisor'|'operador'.
-    const visibility: Prisma.TicketWhereInput | null =
-      user.role === 'admin' || role === 'admin' || role === 'supervisor'
-        ? null
-        : TicketPolicy.visibleWhere(user.id, role ?? 'operador');
-
-    const where: Prisma.TicketWhereInput = {
-      projectId: query.projectId,
-      ...(visibility ?? {}),
+    // Filtros escalares compartidos por ambas ramas (con/sin projectId).
+    const scalar: Prisma.TicketWhereInput = {
       ...(query.state ? { state: query.state } : {}),
       ...(query.assigneeId ? { assigneeId: query.assigneeId } : {}),
       ...(query.reporterId ? { reporterId: query.reporterId } : {}),
@@ -266,6 +255,54 @@ export class TicketsService {
             ],
           }
         : {}),
+    };
+
+    let projectScope: Prisma.TicketWhereInput;
+    let visibility: Prisma.TicketWhereInput | null = null;
+
+    if (query.projectId) {
+      // Rama clásica: proyecto explícito (requiere membresía).
+      await this.ensureMember(query.projectId, user.id);
+      const role = await this.resolveProjectRole(query.projectId, user.id);
+      if (user.role !== 'admin' && role !== 'admin' && role !== 'supervisor') {
+        visibility = TicketPolicy.visibleWhere(user.id, role ?? 'operador');
+      }
+      projectScope = { projectId: query.projectId };
+    } else {
+      // Sin projectId: "Mis tickets" — se acota a los proyectos del usuario
+      // (o a toda su organización si es admin global), respetando visibilidad.
+      const memberships = await this.prisma.projectMember.findMany({
+        where: { userId: user.id },
+        select: { projectId: true, roleInProject: true },
+      });
+      const memberProjectIds = memberships.map((m) => m.projectId);
+
+      if (user.role === 'admin') {
+        // Admin global: ve los tickets de su org (o todos si no tiene org).
+        if (user.organizationId) {
+          const orgProjects = await this.prisma.project.findMany({
+            where: { organizationId: user.organizationId },
+            select: { id: true },
+          });
+          const orgProjectIds = orgProjects.map((p) => p.id);
+          projectScope = orgProjectIds.length
+            ? { projectId: { in: orgProjectIds } }
+            : { projectId: { in: [] } };
+        } else {
+          projectScope = {}; // sin filtro de proyecto: todos los tickets
+        }
+      } else {
+        if (memberProjectIds.length === 0) return [];
+        const isOperador = memberships.some((m) => m.roleInProject === 'operador');
+        if (isOperador) visibility = TicketPolicy.visibleWhere(user.id, 'operador');
+        projectScope = { projectId: { in: memberProjectIds } };
+      }
+    }
+
+    const where: Prisma.TicketWhereInput = {
+      ...projectScope,
+      ...(visibility ?? {}),
+      ...scalar,
     };
 
     const page = query.page ?? 1;

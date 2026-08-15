@@ -90,7 +90,7 @@ el frontend la consume vía el proxy (`apps/web/src/lib/api.ts`).
 | Método | Ruta | Rol | Body | 200 | Errores |
 |--------|------|-----|------|-----|---------|
 | POST | `/tickets` | miembro del proyecto | `CreateTicketDto` | `TicketDto` (201) | NOT_PROJECT_MEMBER, VALIDATION_ERROR, ASSIGNEE_NOT_MEMBER |
-| GET | `/tickets?projectId=&state=&assigneeId=&reporterId=` | miembro | — | `TicketDto[]` | NOT_PROJECT_MEMBER |
+| GET | `/tickets?<projectId>&state=&assigneeId=&reporterId=&priority=&type=&labelId=&q=&page=&pageSize=` | autenticado | — | `TicketDto[]` | `projectId` es opcional: si se omite, lista los tickets de los proyectos (y org) del usuario ("Mis tickets"); admin global sin org ve todos. Visibilidad por rol aplicada (operador solo ve `abierto`+sin asignar o asignados a él). |
 | GET | `/tickets/:id` | miembro | — | `TicketDto` | TICKET_NOT_FOUND, NOT_PROJECT_MEMBER |
 | PATCH | `/tickets/:id` | reportero / asignado / agente-admin-proyecto | `UpdateTicketDto` | `TicketDto` | FORBIDDEN, FORBIDDEN |
 | DELETE | `/tickets/:id` | admin proyecto / admin global | — | 204 | FORBIDDEN |
